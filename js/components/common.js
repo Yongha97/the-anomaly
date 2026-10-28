@@ -1,4 +1,5 @@
 import { getState, STAT_KEYS, TASKS } from "../core/state.js";
+import { fatigueLabel, moodLabel } from "../core/member-system.js";
 
 export const escapeHtml = (value = "") => String(value)
   .replaceAll("&", "&amp;")
@@ -72,31 +73,47 @@ export function bottomNav() {
 }
 
 export function memberCard(member, editable = true) {
-  const state = getState();
   const away = member.task === "원정";
+  const statusText = [
+    member.burnoutDays > 0 ? `번아웃 ${member.burnoutDays}일` : "",
+    member.injuries?.map((injury) => `${injury.name} ${injury.daysRemaining}일`).join(", "),
+    member.rehabDays > 0 ? `재활 ${member.rehabDays}일` : "",
+  ].filter(Boolean).join(" · ");
   return `
     <article class="member ${member.leader ? "leader" : ""}">
       <div class="portrait">${faceHtml(member)}</div>
       <div>
         <div class="member-name">${escapeHtml(member.name)}${member.leader ? "<small>리더</small>" : ""}</div>
-        <div class="member-meta">${member.age}세 · ${escapeHtml(member.trait)} · ${escapeHtml(member.background)}</div>
-        <div class="bars">
-          <div class="bar" title="체력"><i style="width:${member.hp}%"></i></div>
-          <div class="bar fatigue" title="피로"><i style="width:${member.fatigue}%"></i></div>
+        <div class="member-meta">${member.age}세 · ${escapeHtml(member.trait)} · ${escapeHtml(member.background)}${member.membership === "mercenary" ? ` · 용병 ${member.contract.daysRemaining}일` : ""}</div>
+        <div class="status-bars">
+          ${statusBar("체력", member.hp, `${member.hp}`)}
+          ${statusBar("피로", member.fatigue, fatigueLabel(member.fatigue), "fatigue")}
+          ${statusBar("무드", member.mood, moodLabel(member.mood), "mood")}
         </div>
+        ${statusText ? `<div class="condition-line">${escapeHtml(statusText)}</div>` : ""}
         ${!editable ? `
           <div class="stat-strip">
-            ${member.stats.map((stat, index) => `<div class="stat"><span>${STAT_KEYS[index]}</span><b>${stat}</b></div>`).join("")}
+            ${STAT_KEYS.map(({ key, label }) => `<div class="stat"><span>${label}</span><b>${member.stats[key]}</b></div>`).join("")}
           </div>
         ` : ""}
       </div>
       ${editable ? `
-        <select class="task-select" data-action="assign" data-id="${member.id}" ${away ? "disabled" : ""} aria-label="${escapeHtml(member.name)} 임무">
+        <select class="task-select" data-action="assign" data-id="${member.id}" ${away || member.burnoutDays > 0 ? "disabled" : ""} aria-label="${escapeHtml(member.name)} 임무">
           ${TASKS.map((task) => `<option ${member.task === task ? "selected" : ""}>${task}</option>`).join("")}
           ${away ? '<option selected>원정</option>' : ""}
         </select>
       ` : `<span class="badge">${escapeHtml(member.task)}</span>`}
     </article>
+  `;
+}
+
+function statusBar(label, value, text, className = "") {
+  return `
+    <div class="status-row ${className}">
+      <span>${label}</span>
+      <div class="bar"><i style="width:${Math.max(0, Math.min(100, value))}%"></i></div>
+      <b>${text}</b>
+    </div>
   `;
 }
 

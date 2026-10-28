@@ -1,5 +1,6 @@
 import { DESTINATIONS, getState } from "../core/state.js";
 import { characterHtml, escapeHtml } from "../components/common.js";
+import { expeditionBlockReason, getStat } from "../core/member-system.js";
 
 export function renderExpedition() {
   const state = getState();
@@ -40,19 +41,21 @@ export function renderExpedition() {
       <section class="panel">
         <div class="panel-head"><div><span class="eyebrow">SQUAD</span><h2>원정대 편성 ${state.squad.length}/5</h2></div><span class="badge">적재 ${carryCapacity}</span></div>
         <div class="panel-body squad-picks">
-          ${state.members.map((member) => `
-            <button class="squad-pick ${state.squad.includes(member.id) ? "selected" : ""}" data-action="squad" data-id="${member.id}">
-              <div><b>${escapeHtml(member.name)}</b><small>전투 ${member.stats[1]} · 정신 ${member.stats[0]} · ${escapeHtml(member.trait)}</small></div>
+          ${state.members.map((member) => {
+            const blocked = expeditionBlockReason(member);
+            return `
+            <button class="squad-pick ${state.squad.includes(member.id) ? "selected" : ""} ${blocked ? "blocked" : ""}" data-action="squad" data-id="${member.id}" ${blocked ? "disabled" : ""}>
+              <div><b>${escapeHtml(member.name)}</b><small>${blocked ? escapeHtml(blocked) : `전투 ${getStat(member, "combat")} · 정찰 ${getStat(member, "scouting")}`}</small></div>
               <span class="check">✓</span>
             </button>
-          `).join("")}
+          `}).join("")}
           ${state.squad.length ? `
             <label class="leader-select">
               <span>원정대 리더</span>
               <select data-action="expedition-leader">
                 ${state.squad.map((id) => {
                   const member = state.members.find((item) => item.id === id);
-                  return `<option value="${id}" ${state.expeditionLeaderId === id ? "selected" : ""}>${escapeHtml(member.name)} · 정신 ${member.stats[0]} / 전투 ${member.stats[1]}</option>`;
+                  return `<option value="${id}" ${state.expeditionLeaderId === id ? "selected" : ""}>${escapeHtml(member.name)} · 정신 ${getStat(member, "mental")} / 전투 ${getStat(member, "combat")}</option>`;
                 }).join("")}
               </select>
             </label>
@@ -125,7 +128,7 @@ function renderActiveExpedition(state) {
             <div class="runner"><div class="worker-face">${characterHtml(member, "scene-character")}</div><small>${escapeHtml(member.name)}</small></div>
           `).join("")}
           <div class="zombie">♟</div>
-          <div class="scene-info"><span class="badge">원정 완료</span><span class="badge">적재 ${expedition.carryCapacity}</span></div>
+          <div class="scene-info"><span class="badge">${expedition.status === "waiting" ? "사건 대응 중" : "원정 완료"}</span><span class="badge">적재 ${expedition.carryCapacity}</span></div>
         </div>
         <div class="panel-body">
           <span class="eyebrow">EXPEDITION REPORT</span>
@@ -141,7 +144,7 @@ function renderActiveExpedition(state) {
               </div>
             `).join("")}
           </div>
-          <button class="primary" style="margin-top:10px" data-action="finish-expedition">결과 확인 · 거점 복귀</button>
+          <button class="primary" style="margin-top:10px" data-action="finish-expedition" ${expedition.status !== "complete" ? "disabled" : ""}>${expedition.status === "waiting" ? "사건을 먼저 해결하세요" : "결과 확인 · 거점 복귀"}</button>
         </div>
       </section>
       <section class="panel">
@@ -168,3 +171,4 @@ function policyButton(action, value, title, description, selectedValue) {
 function outcomeIcon(type) {
   return { loot: "▣", injury: "+", death: "×", recruit: "◇", hostile: "!", info: "·" }[type] ?? "·";
 }
+

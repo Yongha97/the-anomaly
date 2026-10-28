@@ -2,27 +2,39 @@ import {
   assignTask,
   autoAssign,
   closeReport,
+  dismissGuide,
+  closeCombatReport,
+  equipMember,
   finishExpedition,
   getState,
   launchExpedition,
+  hireMercenary,
+  openBaseView,
   passDay,
   rerollStartingMembers,
+  resolvePendingEvent,
   selectDestination,
   setExpeditionLeader,
+  setMembersView,
   setRationPlan,
   setRecruitPolicy,
   setRiskPolicy,
+  setBattleTactic,
   setTab,
   startGame,
   subscribe,
   toggleSquad,
+  toggleBattleMember,
+  tradeFaction,
   upgradeFacility,
+  startFactionBattle,
 } from "./core/state.js";
 import { bottomNav, escapeHtml, faceHtml, reportModal, toastView, topBar } from "./components/common.js";
 import { renderField } from "./screens/field.js";
 import { renderMembers } from "./screens/members.js";
 import { renderExpedition } from "./screens/expedition.js";
 import { renderBase } from "./screens/base.js";
+import { combatReportModal, eventModal } from "./components/event-modal.js";
 
 const app = document.querySelector("#app");
 const screens = {
@@ -45,6 +57,8 @@ function render() {
       ${screen()}
       ${bottomNav()}
       ${reportModal()}
+      ${eventModal(state)}
+      ${combatReportModal(state)}
       ${toastView()}
     </div>
   `;
@@ -97,12 +111,15 @@ app.addEventListener("change", (event) => {
   if (event.target.dataset.action === "expedition-leader") {
     setExpeditionLeader(event.target.value);
   }
+  if (event.target.dataset.action === "equip") {
+    equipMember(event.target.dataset.id, event.target.value);
+  }
 });
 
 app.addEventListener("click", (event) => {
   const target = event.target.closest("[data-action]");
   if (!target) return;
-  const { action, id, tab, plan, value } = target.dataset;
+  const { action, id, tab, plan, value, choice, faction, item, direction, view } = target.dataset;
   const actions = {
     tab: () => setTab(tab),
     "auto-assign": autoAssign,
@@ -117,6 +134,16 @@ app.addEventListener("click", (event) => {
     "finish-expedition": finishExpedition,
     upgrade: () => upgradeFacility(id),
     "close-report": closeReport,
+    "dismiss-guide": dismissGuide,
+    "resolve-event": () => resolvePendingEvent(choice),
+    "members-view": () => setMembersView(view),
+    "open-base-view": () => openBaseView(view, faction),
+    trade: () => tradeFaction(faction, item, direction),
+    hire: () => hireMercenary(faction),
+    "battle-member": () => toggleBattleMember(id),
+    "battle-tactic": () => setBattleTactic(value),
+    "start-battle": () => startFactionBattle(faction),
+    "close-combat-report": closeCombatReport,
   };
   actions[action]?.();
 });

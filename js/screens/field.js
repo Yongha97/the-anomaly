@@ -1,5 +1,6 @@
 import { getState } from "../core/state.js";
 import { characterHtml, escapeHtml, memberCard } from "../components/common.js";
+import { effectiveStat } from "../core/member-system.js";
 
 export function renderField() {
   const state = getState();
@@ -7,8 +8,9 @@ export function renderField() {
   const assigned = (task) => state.members.filter((member) => member.task === task).length;
   const defense = state.members
     .filter((member) => member.task === "경계")
-    .reduce((sum, member) => sum + member.stats[1], wall.level * 3);
+    .reduce((sum, member) => sum + effectiveStat(member, "combat") + effectiveStat(member, "scouting") * .5, wall.level * 3);
   const threat = 7 + Math.floor(state.day / 4);
+  const guide = getGuide(state);
 
   return `
     <main class="screen">
@@ -16,6 +18,13 @@ export function renderField() {
         <div><p>FIELD / SHELTER 09</p><h1>거점 현장</h1></div>
         <p>${state.members.length} / ${2 + state.facilities.find((item) => item.id === "barracks").level * 2}명</p>
       </div>
+
+      ${!state.guideDismissed ? `
+        <section class="guide-card">
+          <div><span class="eyebrow">SURVIVAL GUIDE</span><b>${guide.title}</b><small>${guide.text}</small></div>
+          <button class="icon-btn" data-action="dismiss-guide" aria-label="가이드 닫기">×</button>
+        </section>
+      ` : ""}
 
       <section class="panel">
         <div class="scene">
@@ -58,4 +67,15 @@ export function renderField() {
       <button class="primary" data-action="pass-day">하루 보내기</button>
     </main>
   `;
+}
+
+function getGuide(state) {
+  const burnout = state.members.find((member) => member.burnoutDays > 0);
+  if (burnout) return { title: "번아웃 발생", text: `${burnout.name}은(는) 휴식과 긍정적인 대화가 필요합니다.` };
+  const injured = state.members.find((member) => member.injuries?.length);
+  if (injured) return { title: "부상자 치료", text: "의무실을 1단계로 강화하고 의학 담당자를 배치하세요." };
+  const tired = state.members.find((member) => member.fatigue >= 75);
+  if (tired) return { title: "피로 위험", text: `${tired.name}의 작업 효율이 감소했습니다. 휴식을 배치하세요.` };
+  if (state.resources.food < state.members.length * 3) return { title: "식량 부족", text: "보유 식량이 3일치 미만입니다. 농사 담당자를 배치하세요." };
+  return { title: "첫날 가이드", text: "능력에 맞춰 임무를 배치하고 피로와 무드를 확인한 뒤 하루를 보내세요." };
 }

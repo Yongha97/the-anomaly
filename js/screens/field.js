@@ -1,15 +1,19 @@
 import { getState } from "../core/state.js";
 import { characterHtml, escapeHtml, memberCard } from "../components/common.js";
 import { effectiveStat } from "../core/member-system.js";
+import { contactLine, damageRange, planAmmo } from "../core/combat-system.js";
 
 export function renderField() {
   const state = getState();
   const wall = state.facilities.find((item) => item.id === "wall");
   const assigned = (task) => state.members.filter((member) => member.task === task).length;
-  const defense = state.members
-    .filter((member) => member.task === "경계")
-    .reduce((sum, member) => sum + effectiveStat(member, "combat") + effectiveStat(member, "scouting") * .5, wall.level * 3);
-  const threat = 7 + Math.floor(state.day / 4);
+  const watchers = state.members.filter((member) => member.task === "경계");
+  const defense = watchers.reduce((sum, member) => sum + effectiveStat(member, "combat") + effectiveStat(member, "scouting") * .5, wall.level * 3);
+  const contact = state.nightContact;
+  const ammoPlan = planAmmo(contact, watchers, "defense");
+  const shortfall = ammoPlan.expected > 0 ? Math.max(0, 1 - state.resources.ammo / ammoPlan.expected) : 0;
+  const [damageMin, damageMax] = damageRange(contact, { shortfall, guns: ammoPlan.guns });
+  const threat = contact?.power ?? 0;
   const guide = getGuide(state);
 
   return `
@@ -29,10 +33,7 @@ export function renderField() {
       <section class="panel">
         <div class="scene">
           <div class="moon"></div><div class="skyline"></div><div class="ground"></div>
-          <div class="building b1 active"><span>방벽 LV.${wall.level}</span></div>
-          <div class="building b2"><span>막사</span></div>
-          <div class="building b3"><span>창고</span></div>
-          <div class="campfire"></div>
+          ${compoundMarkup(state)}
           ${state.members.filter((member) => member.task !== "원정").map((member, index) => `
             <div class="worker" style="--delay:-${index * 2.1}s">
               <div class="worker-face">${characterHtml(member, "scene-character")}</div>
@@ -43,7 +44,7 @@ export function renderField() {
         </div>
         <div class="alert ${defense >= threat ? "good" : ""}">
           <span>◆</span>
-          <div><strong>오늘 밤 위협 ${threat}</strong><br>현재 방어력 ${defense} · ${defense >= threat ? "방어선이 안정적입니다." : "경계 인원을 추가하세요."}</div>
+          <div><strong>오늘 밤 ${contactLine(contact)} · 위협 ${threat}</strong><br>방어력 ${defense} · 예상 탄약 ${ammoPlan.expected} · 뚫리면 체력 ${damageMin}~${damageMax}</div>
         </div>
       </section>
 
@@ -66,6 +67,33 @@ export function renderField() {
 
       <button class="primary" data-action="pass-day">하루 보내기</button>
     </main>
+  `;
+}
+
+function compoundMarkup(state) {
+  const level = (id) => state.facilities.find((item) => item.id === id).level;
+  const tier = (value) => (value <= 0 ? 0 : value >= 3 ? 2 : 1);
+  const yard = [
+    ["farm", "농지", `<i class="soil"></i><i class="sprout"></i><i class="sprout s2"></i>`],
+    ["barracks", "막사", `<i class="roof"></i><i class="shell"></i><i class="door"></i><i class="win"></i><i class="win r"></i>`],
+    ["kitchen", "주방", `<i class="chimney"></i><i class="roof"></i><i class="shell"></i><i class="pot"></i>`],
+    ["clinic", "의무실", `<i class="roof"></i><i class="shell"></i><i class="cross"></i><i class="win"></i>`],
+    ["workshop", "공방", `<i class="chimney"></i><i class="roof"></i><i class="shell"></i><i class="forge"></i>`],
+  ];
+  const structureHtml = ([id, name, parts]) => `
+    <div class="structure ${id} t-${tier(level(id))}" aria-label="${name} ${level(id)}단계">
+      ${parts}<em>${name} ${level(id)}</em>
+    </div>
+  `;
+  return `
+    <div class="fence lv-${level("wall")}" aria-label="방벽 ${level("wall")}단계">
+      <i class="rail"></i><i class="gate"></i><i class="lamp"></i><em>방벽 ${level("wall")}</em>
+    </div>
+    <div class="yard">
+      ${yard.slice(0, 3).map(structureHtml).join("")}
+      <div class="firepit" aria-hidden="true"><i></i></div>
+      ${yard.slice(3).map(structureHtml).join("")}
+    </div>
   `;
 }
 

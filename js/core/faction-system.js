@@ -45,18 +45,18 @@ export function tradeItem({ faction, inventory, resources, itemId, direction }) 
 
   if (direction === "buy") {
     if ((faction.stock[itemId] ?? 0) < 1) return { ok: false, message: "세력 재고가 없습니다." };
-    if (resources.material < price) return { ok: false, message: `자재가 ${price - resources.material} 부족합니다.` };
-    resources.material -= price;
+    if (resources.silver < price) return { ok: false, message: `은이 ${price - resources.silver} 부족합니다.` };
+    resources.silver -= price;
     playerStore[itemId] = (playerStore[itemId] ?? 0) + 1;
     faction.stock[itemId] -= 1;
-    return { ok: true, message: `${displayName(itemId)} 1개를 자재 ${price}에 구매했습니다.` };
+    return { ok: true, message: `${displayName(itemId)} 1개를 은 ${price}에 구매했습니다.` };
   }
 
   if ((playerStore[itemId] ?? 0) < 1) return { ok: false, message: "판매할 물품이 없습니다." };
   playerStore[itemId] -= 1;
-  resources.material += price;
+  resources.silver += price;
   faction.stock[itemId] = (faction.stock[itemId] ?? 0) + 1;
-  return { ok: true, message: `${displayName(itemId)} 1개를 판매해 자재 ${price}을 얻었습니다.` };
+  return { ok: true, message: `${displayName(itemId)} 1개를 판매해 은 ${price}을 얻었습니다.` };
 }
 
 export function tickFactions(factions) {

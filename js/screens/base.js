@@ -2,6 +2,7 @@ import { getState } from "../core/state.js";
 import { escapeHtml } from "../components/common.js";
 import { factionRelationLabel, tradePrice } from "../core/faction-system.js";
 import { ITEMS } from "../data/items.js";
+import { contactLine, damageRange, planAmmo, raidOutlook } from "../core/combat-system.js";
 
 export function renderBase() {
   const state = getState();
@@ -21,6 +22,7 @@ export function renderBase() {
             const maxed = facility.level >= facility.max;
             return `
               <div class="facility">
+                <i class="fico ${facility.id}" aria-hidden="true"></i>
                 <div>
                   <b>${escapeHtml(facility.name)} · LV.${facility.level}</b>
                   <small>${escapeHtml(facility.description)}</small>
@@ -66,7 +68,7 @@ function renderFactionView(state) {
         <div><p>FACTION / ${factionRelationLabel(faction.relation)}</p><h1>${escapeHtml(faction.name)}</h1></div>
         <p>전력 ${faction.power}</p>
       </div>
-      <div class="alert ${faction.relation >= 20 ? "good" : ""}"><span>◆</span><div><strong>관계 ${faction.relation} · ${factionRelationLabel(faction.relation)}</strong><br>${escapeHtml(faction.description)}</div></div>
+      <div class="alert ${faction.relation >= 20 ? "good" : ""}"><span>◆</span><div><strong>관계 ${faction.relation} · ${factionRelationLabel(faction.relation)}</strong><br>${escapeHtml(faction.description)}${faction.relation < 0 || faction.retaliationDays ? ` · ${raidOutlook(faction)}` : ""}</div></div>
       <div class="faction-actions">
         <button class="secondary" data-action="open-base-view" data-view="trade" data-faction="${faction.id}">거래</button>
         <button class="secondary" data-action="open-base-view" data-view="merc" data-faction="${faction.id}">용병</button>
@@ -79,6 +81,7 @@ function renderFactionView(state) {
         <section class="panel"><div class="panel-head"><h2>세력 정보</h2></div><div class="panel-body">
           <div class="kv-line"><span>관계 단계</span><b>${factionRelationLabel(faction.relation)}</b></div>
           <div class="kv-line"><span>보복 위험</span><b>${faction.retaliationDays ? `${faction.retaliationDays}일` : "없음"}</b></div>
+          <div class="kv-line"><span>습격</span><b>${raidOutlook(faction)}</b></div>
           <div class="kv-line"><span>주요 수요</span><b>${resourceName(faction.wants)}</b></div>
         </div></section>
       ` : ""}
@@ -89,15 +92,20 @@ function renderFactionView(state) {
 function renderTrade(state, faction) {
   return `
     <section class="panel">
-      <div class="panel-head"><div><span class="eyebrow">TRADE</span><h2>거래소 · 보유 자재 ${state.resources.material}</h2></div></div>
+      <div class="panel-head"><div><span class="eyebrow">TRADE</span><h2>거래소 · 보유 은 ${state.resources.silver}</h2></div></div>
       <div class="panel-body trade-list">
-        ${Object.entries(faction.stock).map(([itemId, amount]) => `
+        ${Object.entries(faction.stock).map(([itemId, amount]) => {
+          const buy = tradePrice(faction, itemId, "buy");
+          const sell = tradePrice(faction, itemId, "sell");
+          const owned = ownedAmount(state, itemId);
+          return `
           <div class="trade-row">
-            <div><b>${displayName(itemId)}</b><small>세력 재고 ${amount} · 내 보유 ${ownedAmount(state, itemId)}</small></div>
-            <button class="secondary" data-action="trade" data-faction="${faction.id}" data-item="${itemId}" data-direction="buy" ${amount < 1 ? "disabled" : ""}>구매 ${tradePrice(faction, itemId, "buy")}</button>
-            <button class="secondary" data-action="trade" data-faction="${faction.id}" data-item="${itemId}" data-direction="sell" ${ownedAmount(state, itemId) < 1 ? "disabled" : ""}>판매 ${tradePrice(faction, itemId, "sell")}</button>
+            <div><b>${displayName(itemId)}</b><small>세력 재고 ${amount} · 내 보유 ${owned}</small></div>
+            <button class="secondary" data-action="trade" data-faction="${faction.id}" data-item="${itemId}" data-direction="buy" ${amount < 1 || state.resources.silver < buy ? "disabled" : ""}>구매 ${buy}</button>
+            <button class="secondary" data-action="trade" data-faction="${faction.id}" data-item="${itemId}" data-direction="sell" ${owned < 1 ? "disabled" : ""}>판매 ${sell}</button>
           </div>
-        `).join("")}
+        `;
+        }).join("")}
       </div>
     </section>
   `;
@@ -109,7 +117,7 @@ function renderMercenary(state, faction) {
     <section class="panel">
       <div class="panel-head"><div><span class="eyebrow">CONTRACT</span><h2>기간제 용병</h2></div></div>
       <div class="panel-body">
-        <div class="merc-card"><b>${escapeHtml(offer.name)}</b><span>${offer.days}일 계약</span><small>전투 ${offer.combat} · 정찰 ${offer.scouting} · 선금 식량 ${offer.foodCost} · 일당 식량 1</small></div>
+        <div class="merc-card"><b>${escapeHtml(offer.name)}</b><span>${offer.days}일 계약</span><small>전투 ${offer.combat} · 정찰 ${offer.scouting} · 선금 은 ${offer.silverCost} · 일당 은 ${offer.dailySilver}</small></div>
         <button class="primary" data-action="hire" data-faction="${faction.id}">용병 고용</button>
       </div>
     </section>
@@ -117,6 +125,11 @@ function renderMercenary(state, faction) {
 }
 
 function renderBattle(state, faction) {
+  const contact = state.battleContact?.factionId === faction.id ? state.battleContact : null;
+  const squad = state.members.filter((member) => state.battleTeam.includes(member.id));
+  const plan = contact ? planAmmo(contact, squad, state.battleTactic) : null;
+  const shortfall = plan?.expected > 0 ? Math.max(0, 1 - state.resources.ammo / plan.expected) : 0;
+  const harm = contact ? damageRange(contact, { shortfall, guns: plan.guns }) : null;
   return `
     <section class="panel">
       <div class="panel-head"><div><span class="eyebrow">FORMATION</span><h2>전투 편성 ${state.battleTeam.length}/5</h2></div></div>
@@ -129,6 +142,7 @@ function renderBattle(state, faction) {
             </button>
           </div>
         `).join("")}
+        ${contact ? `<p class="battle-brief">${contactLine(contact)} · 위협 ${contact.power} · 예상 탄약 ${plan.expected} · 보유 ${state.resources.ammo}${plan.guns ? "" : " · 화기 없음"} · 부상 시 체력 ${harm[0]}~${harm[1]}</p>` : ""}
         <div class="policy-grid three">
           ${tacticButton("assault", "공격", state.battleTactic)}
           ${tacticButton("defense", "방어", state.battleTactic)}

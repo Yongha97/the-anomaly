@@ -7,6 +7,7 @@ export const STAT_DEFINITIONS = [
   { key: "crafting", label: "제작" },
   { key: "medical", label: "의학" },
   { key: "scouting", label: "정찰" },
+  { key: "leadership", label: "리더십" },
 ];
 
 export const TASK_STAT = {
@@ -23,6 +24,13 @@ export function createStats(values = {}) {
     return Object.fromEntries(STAT_DEFINITIONS.map(({ key }, index) => [key, values[index] ?? random(2, 7)]));
   }
   return Object.fromEntries(STAT_DEFINITIONS.map(({ key }) => [key, values[key] ?? random(2, 7)]));
+}
+
+export function ageStatCap(age, trait) {
+  const years = Math.max(0, Math.min(age, 45) - 16);
+  const peak = Math.min(10, Math.max(4, 4 + Math.round(years / 29 * 6)));
+  if (trait === "만학" || age <= 45) return peak;
+  return Math.max(4, peak - Math.floor((age - 45) / 5));
 }
 
 export function getStat(member, key) {

@@ -1,4 +1,5 @@
 import { applyMood, effectiveStat, getStat } from "./member-system.js";
+import { adjustInjuryMood, harmDamage } from "./trait-system.js";
 
 const INJURY_TYPES = {
   minor: ["타박상", "얕은 열상", "염좌"],
@@ -16,17 +17,18 @@ export function createInjury(danger, risky) {
 }
 
 export function addInjury(member, injury, damage, day) {
-  member.hp = Math.max(1, member.hp - damage);
+  const taken = harmDamage(member, damage);
+  member.hp = Math.max(1, member.hp - taken);
   member.injuries.push(injury);
   member.history.push(`${day}일 차, ${injury.name} 부상을 입었다.`);
-  applyMood(member, injury.severity === "major" ? -8 : -4, `${injury.name} 부상`, day);
+  applyMood(member, adjustInjuryMood(member, injury.severity === "major" ? -8 : -4), `${injury.name} 부상`, day);
   let combatLoss = 0;
   if (injury.severity === "major" && member.stats.combat > 1) {
     member.stats.combat -= 1;
     combatLoss = 1;
     member.history.push(`${day}일 차, 장기 부상의 후유증으로 전투 능력이 1 감소했다.`);
   }
-  return { combatLoss };
+  return { combatLoss, damage: taken };
 }
 
 export function processMedicalDay({ members, clinicLevel, medicine, day }) {
@@ -86,8 +88,9 @@ export function processMedicalDay({ members, clinicLevel, medicine, day }) {
     if (injury.daysRemaining <= 0) {
       patient.injuries = patient.injuries.filter((item) => item.id !== injury.id);
       patient.rehabDays = injury.severity === "major" ? Math.max(1, 5 - Math.floor(medical / 3) - clinicLevel) : 0;
+      if (healer.trait === "자비" && patient.rehabDays > 0) patient.rehabDays -= 1;
       patient.history.push(`${day}일 차, ${injury.name} 치료를 마쳤다.`);
-      applyMood(patient, 3, "치료 성공", day);
+      applyMood(patient, healer.trait === "자비" ? 5 : 3, "치료 성공", day);
       notes.push(`${healer.name}이(가) ${patient.name}의 ${injury.name} 치료에 성공했다.`);
     } else {
       notes.push(`${healer.name}이(가) ${patient.name}을(를) 치료했다. 회복까지 ${injury.daysRemaining}일.`);

@@ -4,6 +4,7 @@ import {
   closeReport,
   dismissGuide,
   closeCombatReport,
+  autoEquip,
   equipMember,
   finishExpedition,
   getState,
@@ -37,7 +38,7 @@ import {
   upgradeFacility,
   startFactionBattle,
 } from "./core/state.js";
-import { bottomNav, escapeHtml, faceHtml, reportModal, toastView, topBar } from "./components/common.js";
+import { bottomNav, escapeHtml, faceHtml, jobNameButton, jobPanel, reportModal, toastView, topBar, traitNameButton, traitPanel } from "./components/common.js";
 import { renderField } from "./screens/field.js";
 import { renderMembers } from "./screens/members.js";
 import { renderExpedition } from "./screens/expedition.js";
@@ -92,16 +93,19 @@ function renderTitle() {
           ${state.members.map((member) => `
             <div class="start-member ${member.leader ? "is-leader" : ""}">
               ${faceHtml(member)}
-              <div>
+              <div class="start-copy">
                 <small>${member.gender === "female" ? "여" : "남"} · ${member.age}세${member.leader ? " · 리더" : ""}</small>
                 <b>${escapeHtml(member.name)}</b>
-                <em>${escapeHtml(member.trait)} · ${escapeHtml(member.background)}</em>
+                <em>
+                  <span class="identity">${traitNameButton(member)}${traitPanel(member)}</span>
+                  ·
+                  <span class="identity">${jobNameButton(member)}${jobPanel(member)}</span>
+                </em>
               </div>
             </div>
           `).join("")}
         </div>
         <button class="secondary reroll" type="button" data-action="reroll-start">↻ 다시 뽑기</button>
-        <p class="start-note">나이, 직업, 능력, 이름, 성별, 성격, 얼굴이 다시 정해집니다. 능력은 1부터 나이 상한까지 나옵니다. 16세는 상한 4, 45세는 10이고 그 뒤로는 5년마다 1씩 낮아집니다. 만학은 늙어도 상한이 줄지 않습니다. 시작 리더는 리더십이 가장 높은 사람입니다.</p>
         <button class="primary" type="submit">생존 시작</button>
       </form>
     </div>
@@ -137,6 +141,7 @@ app.addEventListener("click", (event) => {
   const actions = {
     tab: () => setTab(tab),
     "auto-assign": autoAssign,
+    "auto-equip": autoEquip,
     "reroll-start": rerollStartingMembers,
     "pass-day": passDay,
     destination: () => selectDestination(id),

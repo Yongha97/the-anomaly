@@ -3,10 +3,11 @@ import { joinsConversation, keepsPositiveBond, loyalNewcomerOffset } from "./tra
 
 const FRIENDLY_PAIRS = [
   ["낙천", "냉정"], ["자비", "생존본능"], ["충직", "자비"], ["외톨이", "냉정"],
+  ["유순함", "자비"], ["유순함", "낙천"],
 ];
 const CLASH_PAIRS = [
   ["다혈질", "냉정"], ["야심", "충직"], ["외톨이", "낙천"], ["다혈질", "자비"],
-  ["사이코패스", "자비"], ["겁쟁이", "다혈질"],
+  ["사이코패스", "자비"], ["겁쟁이", "다혈질"], ["유순함", "다혈질"], ["유순함", "야심"],
 ];
 
 export function initializeRelationships(members) {

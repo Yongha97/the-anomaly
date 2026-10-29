@@ -9,9 +9,9 @@ const TACTICS = {
 };
 
 const PROFILES = {
-  zombies: { label: "좀비", unit: "마리", ammoRate: .28, powerEach: .95, damage: [6, 13], pressure: .85, death: .65 },
-  bandits: { label: "무소속 강도", unit: "명", ammoRate: .75, powerEach: 2.4, damage: [10, 20], pressure: 1.05, death: 1.15 },
-  faction: { label: "적대 세력", unit: "명", ammoRate: 1.05, powerEach: 3.2, damage: [12, 24], pressure: 1.2, death: 1.3 },
+  zombies: { label: "좀비", unit: "마리", ammoRate: .9, powerEach: .95, damage: [6, 13], pressure: .85, death: .65 },
+  bandits: { label: "무소속 강도", unit: "명", ammoRate: 2.2, powerEach: 2.4, damage: [10, 20], pressure: 1.05, death: 1.15 },
+  faction: { label: "적대 세력", unit: "명", ammoRate: 3, powerEach: 3.2, damage: [12, 24], pressure: 1.2, death: 1.3 },
 };
 
 export function rollContact({ situation = "zombies", day = 1, danger = 2, scale = "normal", faction = null }) {
@@ -46,12 +46,13 @@ export function raidOutlook(faction) {
   return "습격하지 않음";
 }
 
-export function rollNightContact(day, factions = {}) {
+export function rollNightContact(day, factions = {}, watchScore = 0) {
   const danger = 1 + Math.floor(day / 6);
+  const quietBonus = Math.min(.48, Math.max(0, watchScore) * .03);
   const weighted = hostileWeights(factions);
   const pressure = weighted.reduce((sum, item) => sum + item.weight, 0);
   const revenge = weighted.some((item) => item.faction.retaliationDays > 0);
-  const factionChance = Math.min(.58, .04 + pressure * .4 + (revenge ? .1 : 0));
+  const factionChance = Math.min(.58, Math.max(0, .04 + pressure * .4 + (revenge ? .1 : 0) - quietBonus * .35));
   if (weighted.length && Math.random() < factionChance) {
     const raider = weightedPick(weighted);
     const hate = Math.max(0, -(raider.relation ?? 0)) / 100;
@@ -63,7 +64,10 @@ export function rollNightContact(day, factions = {}) {
       faction: raider,
     });
   }
-  if (Math.random() < .2) return rollContact({ situation: "bandits", day, danger: Math.max(2, danger) });
+  const roll = Math.random();
+  const quietLine = Math.min(.82, .22 + quietBonus);
+  if (roll < quietLine) return null;
+  if (roll < quietLine + .16) return rollContact({ situation: "bandits", day, danger: Math.max(2, danger) });
   return rollContact({ situation: "zombies", day, danger });
 }
 
@@ -90,13 +94,23 @@ export function rollExpeditionContact({ danger, risky, day, factions }) {
 
 export function planAmmo(contact, members, tactic = "defense") {
   const guns = members.filter((member) => equipmentBonus(member).ammo > 0).length;
-  if (!contact || !guns) return { expected: 0, guns };
+  if (!contact || !guns) return { expected: 0, min: 0, max: 0, guns };
   const doctrine = TACTICS[tactic] ?? TACTICS.defense;
   const extraGuns = 1 + Math.max(0, guns - 1) * .12;
+  const base = contact.count * contact.ammoRate * doctrine.ammo * extraGuns;
+  const min = Math.max(1, Math.round(base * .55));
+  const max = Math.max(min, Math.round(base * 1.45));
   return {
-    expected: Math.max(1, Math.round(contact.count * contact.ammoRate * doctrine.ammo * extraGuns)),
+    expected: Math.max(min, Math.round(base)),
+    min,
+    max,
     guns,
   };
+}
+
+export function rollAmmoNeed(plan) {
+  if (!plan?.guns || !plan.max) return 0;
+  return random(plan.min, plan.max);
 }
 
 export function stockpileAmmo(contact) {
@@ -128,8 +142,9 @@ export function resolveFactionCombat({ members, faction, tactic = "defense", amm
   const doctrine = TACTICS[tactic] ?? TACTICS.defense;
   const encounter = contact ?? rollContact({ situation: "faction", faction, day });
   const plan = planAmmo(encounter, members, tactic);
-  const ammoUsed = Math.min(Math.max(0, ammo), plan.expected);
-  const shortfall = plan.expected > 0 ? 1 - ammoUsed / plan.expected : 0;
+  const needed = rollAmmoNeed(plan);
+  const ammoUsed = Math.min(Math.max(0, ammo), needed);
+  const shortfall = needed > 0 ? 1 - ammoUsed / needed : 0;
   let power = 0;
   let defense = 0;
   let scouting = 0;
@@ -141,7 +156,7 @@ export function resolveFactionCombat({ members, faction, tactic = "defense", amm
     scouting += effectiveStat(member, "scouting") + scoutingBonus(member, members.length);
   });
 
-  if (plan.expected > 0 && ammoUsed < plan.expected) power *= .7 + .3 * (ammoUsed / plan.expected);
+  if (needed > 0 && ammoUsed < needed) power *= .7 + .3 * (ammoUsed / needed);
   else if (!plan.guns && encounter.kind !== "zombies") power *= .82;
   power *= doctrine.power;
   defense *= doctrine.defense;
@@ -162,7 +177,7 @@ export function resolveFactionCombat({ members, faction, tactic = "defense", amm
     playerScore: Math.round(playerScore),
     enemyScore: Math.round(enemyScore),
     ammoUsed,
-    expectedAmmo: plan.expected,
+    expectedAmmo: needed,
     shortfall,
     encounter,
     damageMin,

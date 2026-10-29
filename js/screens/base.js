@@ -142,7 +142,7 @@ function renderBattle(state, faction) {
             </button>
           </div>
         `).join("")}
-        ${contact ? `<p class="battle-brief">${contactLine(contact)} · 위협 ${contact.power} · 예상 탄약 ${plan.expected} · 보유 ${state.resources.ammo}${plan.guns ? "" : " · 화기 없음"} · 부상 시 체력 ${harm[0]}~${harm[1]}</p>` : ""}
+        ${contact ? `<p class="battle-brief">${contactLine(contact)} · 위협 ${contact.power} · 탄약 ${plan.min === plan.max ? plan.min : `${plan.min}~${plan.max}`} · 보유 ${state.resources.ammo}${plan.guns ? "" : " · 화기 없음"} · 부상 시 체력 ${harm[0]}~${harm[1]}</p>` : ""}
         <div class="policy-grid three">
           ${tacticButton("assault", "공격", state.battleTactic)}
           ${tacticButton("defense", "방어", state.battleTactic)}

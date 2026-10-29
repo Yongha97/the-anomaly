@@ -81,7 +81,7 @@ function renderEquipment(state) {
       </div>
     </section>
     <section class="panel">
-      <div class="panel-head"><div><span class="eyebrow">EQUIPMENT</span><h2>구성원 장비</h2></div></div>
+      <div class="panel-head"><div><span class="eyebrow">EQUIPMENT</span><h2>구성원 장비</h2></div><button class="secondary" data-action="auto-equip">자동 장착</button></div>
       <div class="panel-body equipment-list">
         ${state.members.map((member) => `
           <article class="equipment-member">
@@ -204,9 +204,11 @@ function equipmentSelect(state, member, slot, emptyLabel) {
   return `
     <select data-action="equip" data-id="${member.id}" aria-label="${escapeHtml(member.name)} ${emptyLabel}">
       <option value="none-${slot}" ${current ? "" : "selected"}>${emptyLabel}</option>
-      ${options.map((item) => `
-        <option value="${item.id}" ${current === item.id ? "selected" : ""}>${escapeHtml(item.name)} · 보유 ${state.inventory[item.id] ?? 0}</option>
-      `).join("")}
+      ${options.map((item) => {
+        const worn = current === item.id;
+        const label = worn ? escapeHtml(item.name) : `${escapeHtml(item.name)} · 보유 ${state.inventory[item.id] ?? 0}`;
+        return `<option value="${item.id}" ${worn ? "selected" : ""}>${label}</option>`;
+      }).join("")}
     </select>
   `;
 }

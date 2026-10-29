@@ -19,6 +19,7 @@ export function renderExpedition() {
   const squadLeader = state.members.find((member) => member.id === state.expeditionLeaderId && state.squad.includes(member.id));
   const routeLeader = squadLeader ?? state.members.find((member) => member.leader);
   const riskyBlocked = routeLeader?.trait === "겁쟁이";
+  const safeBlocked = routeLeader?.trait === "낙천";
   const canLaunch = partyReady
     && state.expeditionLeaderId
     && !alreadyDeparted
@@ -75,7 +76,7 @@ export function renderExpedition() {
         <div class="panel-body">
           <p class="policy-title">행동 규율</p>
           <div class="policy-grid three">
-            ${policyButton("risk-policy", "safe", "안전 우선", "생존 우선 · 보상 감소", state.riskPolicy)}
+            ${policyButton("risk-policy", "safe", "안전 우선", safeBlocked ? `${escapeHtml(routeLeader.name)}${particle(routeLeader.name, "은", "는")} 낙천이라 고를 수 없습니다` : "생존 우선 · 보상 감소", state.riskPolicy, safeBlocked)}
             ${policyButton("risk-policy", "risky", "위험 감수", riskyBlocked ? `${escapeHtml(routeLeader.name)}${particle(routeLeader.name, "은", "는")} 겁쟁이라 고를 수 없습니다` : "보상 증가 · 사망 위험", state.riskPolicy, riskyBlocked)}
             ${policyButton("risk-policy", "leader", "리더 판단", "리더십·전투로 자동 결정", state.riskPolicy)}
           </div>

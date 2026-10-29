@@ -722,6 +722,31 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   margin-left: 4px;
 }
 .member-meta { margin-top: 2px; color: var(--muted); font-size: 9px; }
+.trait-name {
+  padding: 0;
+  color: var(--text);
+  background: none;
+  border: 0;
+  border-bottom: 1px dotted var(--green);
+  font-size: inherit;
+  line-height: inherit;
+}
+.trait-pop {
+  display: none;
+  margin-top: 6px;
+  padding: 7px 8px;
+  background: #1c241c;
+  border: 1px solid var(--green-dark);
+}
+.trait-pop b, .trait-pop small { display: block; }
+.trait-pop b { margin-bottom: 3px; color: var(--green); font-size: 10px; }
+.trait-pop small { color: #d8ddd2; font-size: 9px; line-height: 1.45; }
+.identity:hover .trait-pop,
+.identity:focus-within .trait-pop,
+.identity-set:has(.trait-identity:hover) > .trait-pop:not(.job-pop),
+.identity-set:has(.trait-identity:focus-within) > .trait-pop:not(.job-pop),
+.identity-set:has(.job-identity:hover) > .job-pop,
+.identity-set:has(.job-identity:focus-within) > .job-pop { display: block; }
 .bars { margin-top: 7px; display: grid; gap: 3px; }
 .status-bars { margin-top: 7px; display: grid; gap: 3px; }
 .status-row {
@@ -1019,6 +1044,7 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 .choice small { color: var(--muted); font-size: 9px; }
 .choice.risky { border-color: #70413a; }
 .choice.safe { border-color: #415d3e; }
+.choice.blocked { opacity: .48; }
 .choice:disabled {
   opacity: .38;
   cursor: not-allowed;
@@ -1264,8 +1290,9 @@ button:focus-visible, input:focus-visible, select:focus-visible {
 }
 .leader-mode button.selected { color: var(--text); border-color: var(--green); background: #1c251d; }
 .leader-hint { margin: 6px 0 8px; color: var(--muted); font-size: 9px; }
-.start-party { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.start-party { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; position: relative; z-index: 2; }
 .start-member {
+  position: relative;
   min-width: 0;
   padding: 9px 4px;
   display: grid;
@@ -1275,14 +1302,28 @@ button:focus-visible, input:focus-visible, select:focus-visible {
   background: #101410;
   border: 1px solid var(--line);
 }
+.start-copy { width: 100%; min-width: 0; }
+.start-member .pixel-face { width: 36px; height: 42px; margin: 0 auto; }
 .start-member small, .start-member b, .start-member em { display: block; }
 .start-member small { color: var(--green); font-size: 8px; }
-.start-member b { margin-top: 2px; font-size: 11px; }
-.start-member em { margin-top: 2px; color: var(--muted); font-size: 8px; font-style: normal; }
+.start-member b { margin-top: 2px; font-size: 11px; overflow-wrap: anywhere; }
+.start-member em { margin-top: 2px; color: var(--muted); font-size: 8px; font-style: normal; line-height: 1.4; overflow-wrap: anywhere; }
+.start-member .trait-name { white-space: normal; }
+.start-member .trait-pop {
+  position: absolute;
+  z-index: 8;
+  top: calc(100% + 4px);
+  left: 50%;
+  width: 196px;
+  margin-top: 0;
+  transform: translateX(-50%);
+  text-align: left;
+}
+.start-member:first-child .trait-pop { left: 0; transform: none; }
+.start-member:last-child .trait-pop { left: auto; right: 0; transform: none; }
 .start-member.is-leader { border-color: var(--green); }
 button.start-member { width: 100%; }
-.reroll { width: 100%; margin-top: 7px; }
-.start-note { margin: 9px 0 13px; color: var(--muted); font-size: 9px; line-height: 1.6; }
+.reroll { width: 100%; margin: 7px 0 12px; }
 
 .toast {
   position: fixed;

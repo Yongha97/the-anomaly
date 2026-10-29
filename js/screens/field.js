@@ -1,19 +1,9 @@
 import { getState } from "../core/state.js";
 import { characterHtml, escapeHtml, memberCard } from "../components/common.js";
-import { effectiveStat } from "../core/member-system.js";
-import { contactLine, damageRange, planAmmo } from "../core/combat-system.js";
 
 export function renderField() {
   const state = getState();
-  const wall = state.facilities.find((item) => item.id === "wall");
   const assigned = (task) => state.members.filter((member) => member.task === task).length;
-  const watchers = state.members.filter((member) => member.task === "경계");
-  const defense = watchers.reduce((sum, member) => sum + effectiveStat(member, "combat") + effectiveStat(member, "scouting") * .5, wall.level * 3);
-  const contact = state.nightContact;
-  const ammoPlan = planAmmo(contact, watchers, "defense");
-  const shortfall = ammoPlan.expected > 0 ? Math.max(0, 1 - state.resources.ammo / ammoPlan.expected) : 0;
-  const [damageMin, damageMax] = damageRange(contact, { shortfall, guns: ammoPlan.guns });
-  const threat = contact?.power ?? 0;
   const guide = getGuide(state);
 
   return `
@@ -42,9 +32,12 @@ export function renderField() {
           `).join("")}
           <div class="scene-info"><span class="badge">거점 안정</span><span class="badge">소음 낮음</span></div>
         </div>
-        <div class="alert ${defense >= threat ? "good" : ""}">
+        <div class="alert ${state.lastNight?.type === "good" ? "good" : ""}">
           <span>◆</span>
-          <div><strong>오늘 밤 ${contactLine(contact)} · 위협 ${threat}</strong><br>방어력 ${defense} · 예상 탄약 ${ammoPlan.expected} · 뚫리면 체력 ${damageMin}~${damageMax}</div>
+          <div>
+            <strong>경계의 전투·정찰이 높을수록 안전한 밤을 보낼 수 있습니다.</strong>
+            ${state.lastNight ? `<br>${escapeHtml(state.lastNight.text)}` : ""}
+          </div>
         </div>
       </section>
 

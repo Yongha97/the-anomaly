@@ -8,13 +8,13 @@ export function eventModal(state) {
     <div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="${escapeHtml(event.title)}">
       <section class="modal">
         <div class="modal-head">
-          <span class="eyebrow">${event.source === "expedition" ? "EXPEDITION EVENT" : "BASE EVENT"}</span>
+          <span class="eyebrow">${event.source === "expedition" ? "EXPEDITION EVENT" : event.source === "night" ? "NIGHT" : "BASE EVENT"}</span>
           <h2>${escapeHtml(event.title)}</h2>
           <p>${escapeHtml(event.description)}</p>
         </div>
         <div class="modal-body event-choices">
           ${event.choices.map((choice) => `
-            <button class="choice" data-action="resolve-event" data-choice="${choice.id}">
+            <button class="choice ${choice.blocked ? "blocked" : ""}" data-action="resolve-event" data-choice="${choice.id}">
               <span><strong>${escapeHtml(choice.label)}</strong><small>${escapeHtml(choice.hint)}</small></span><b>›</b>
             </button>
           `).join("")}

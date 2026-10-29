@@ -18,13 +18,14 @@ import {
   processDailyConversation,
   traitsClash,
 } from "./relationship-system.js";
-import { createInventory, equipItem, equipmentBonus, unequipSlot } from "./equipment-system.js";
+import { createInventory, distributeGear, equipItem, equipmentBonus, unequipSlot } from "./equipment-system.js";
 import { canHire, createFactions, tickFactions, tradeItem } from "./faction-system.js";
 import {
   contactLine,
   damageRange,
   describeAmmo,
   planAmmo,
+  rollAmmoNeed,
   resolveFactionCombat,
   stockpileAmmo,
   rollContact,
@@ -53,8 +54,8 @@ export const STAT_KEYS = STAT_DEFINITIONS;
 
 const SURNAMES = ["김", "이", "박", "최", "정", "강", "조", "윤", "장", "임", "한", "오", "서", "신", "권", "황", "안", "송", "류", "홍", "전", "고", "문", "양", "손", "배", "백", "허", "유", "남", "심", "노", "하", "곽", "성", "차", "주", "우", "구", "나", "엄", "원", "천", "방", "공", "현", "함", "변", "염", "추", "도", "석", "설", "마", "길", "표", "명", "기", "반", "금", "옥", "맹", "탁", "편", "용"];
 const COMPOUND_SURNAMES = ["남궁", "선우", "제갈", "사공", "독고", "황보", "서문", "동방"];
-const GIVEN_FIRST = ["도", "서", "하", "민", "지", "유", "태", "시", "가", "현", "로", "은", "재", "수", "해", "준", "아", "예", "채", "윤", "다", "소", "리", "보", "경", "세", "주", "연", "우", "이", "라", "온", "결", "담", "별", "늘", "찬", "호", "건", "율", "빈", "설", "나", "루", "미", "선", "정", "혜", "원", "진"];
-const MALE_GIVEN_LAST = ["윤", "진", "우", "준", "원", "호", "혁", "민", "석", "현", "재", "성", "율", "건", "찬", "결", "후", "겸", "빈", "오", "한", "서", "람", "훈", "수", "기", "태", "명", "철", "식"];
+const GIVEN_FIRST = ["도", "서", "하", "민", "지", "유", "태", "시", "가", "현", "로", "은", "재", "수", "해", "준", "아", "예", "채", "윤", "다", "소", "리", "보", "경", "세", "주", "연", "우", "이", "라", "온", "결", "담", "별", "늘", "찬", "호", "건", "율", "빈", "설", "나", "루", "미", "선", "정", "혜", "원", "진", "평", "용", "병", "명", "한"];
+const MALE_GIVEN_LAST = ["윤", "진", "우", "준", "원", "호", "혁", "민", "석", "현", "재", "성", "율", "건", "찬", "결", "후", "겸", "빈", "오", "한", "서", "람", "훈", "수", "기", "태", "명", "철", "식", "안", "하"];
 const FEMALE_GIVEN_LAST = ["아", "연", "린", "율", "은", "빈", "서", "희", "윤", "정", "원", "솔", "별", "담", "름", "채", "경", "주", "미", "나", "리", "온", "혜", "영", "진", "유", "란", "설", "비", "화"];
 export const BEARD_NAMES = ["없음", "콧수염", "턱수염", "짧은 수염", "풀수염", "수염 자국"];
 const RECRUIT_TRAITS = TRAITS;
@@ -73,6 +74,77 @@ const JOBS = [
   ["환경기사", 24, 62], ["연구원", 26, 64], ["기계공학자", 25, 62],
   ["주부", 22, 68], ["일용직", 18, 66], ["무직", 18, 68],
 ];
+
+const JOB_MODS = {
+  고등학생: { mental: 1, leadership: -1 },
+  대학생: { mental: 1, crafting: 1, combat: -1 },
+  대학원생: { medical: 1, crafting: 1, combat: -1 },
+  아르바이트: { cooking: 1, scouting: 1, leadership: -1 },
+  교사: { leadership: 2, mental: 1, combat: -1 },
+  교수: { leadership: 2, medical: 1, farming: -1 },
+  학원강사: { leadership: 1, mental: 1, farming: -1 },
+  사서: { mental: 1, medical: 1, combat: -1 },
+  간호사: { medical: 2, mental: 1, building: -1 },
+  의사: { medical: 2, leadership: 1, farming: -1 },
+  응급구조사: { medical: 2, mental: 1, crafting: -1 },
+  약사: { medical: 2, crafting: 1, combat: -1 },
+  간병인: { medical: 1, cooking: 1, combat: -1 },
+  물리치료사: { medical: 2, farming: 1, crafting: -1 },
+  수의사: { medical: 2, farming: 1, leadership: -1 },
+  소방관: { combat: 2, mental: 1, cooking: -1 },
+  경찰: { combat: 2, leadership: 1, farming: -1 },
+  군인: { combat: 2, scouting: 1, cooking: -1 },
+  경비원: { combat: 1, scouting: 1, crafting: -1 },
+  농부: { farming: 2, building: 1, medical: -1 },
+  어부: { farming: 1, scouting: 1, leadership: -1 },
+  목수: { building: 2, crafting: 1, medical: -1 },
+  배관공: { building: 2, crafting: 1, scouting: -1 },
+  용접공: { crafting: 2, building: 1, medical: -1 },
+  전기기사: { crafting: 2, building: 1, farming: -1 },
+  정비공: { crafting: 2, scouting: 1, leadership: -1 },
+  건축기사: { building: 2, leadership: 1, cooking: -1 },
+  요리사: { cooking: 2, farming: 1, combat: -1 },
+  제빵사: { cooking: 2, crafting: 1, combat: -1 },
+  바리스타: { cooking: 1, mental: 1, building: -1 },
+  영양사: { cooking: 1, medical: 1, combat: -1 },
+  프로그래머: { crafting: 2, mental: 1, combat: -1 },
+  회사원: { mental: 1, leadership: 1, combat: -1 },
+  공무원: { leadership: 2, mental: 1, crafting: -1 },
+  회계사: { mental: 2, leadership: 1, farming: -1 },
+  변호사: { leadership: 2, mental: 1, farming: -1 },
+  기자: { scouting: 2, leadership: 1, farming: -1 },
+  작가: { mental: 2, crafting: 1, combat: -1 },
+  택시기사: { scouting: 2, mental: 1, farming: -1 },
+  버스기사: { scouting: 1, leadership: 1, crafting: -1 },
+  택배기사: { scouting: 2, building: 1, medical: -1 },
+  배달원: { scouting: 2, combat: 1, leadership: -1 },
+  미용사: { crafting: 1, mental: 1, combat: -1 },
+  디자이너: { crafting: 2, scouting: 1, farming: -1 },
+  사진가: { scouting: 2, crafting: 1, leadership: -1 },
+  음악가: { mental: 1, leadership: 2, farming: -1 },
+  화가: { mental: 1, crafting: 1, combat: -1 },
+  운동선수: { combat: 2, mental: 1, crafting: -1 },
+  코치: { leadership: 2, combat: 1, crafting: -1 },
+  무술사범: { combat: 2, leadership: 1, cooking: -1 },
+  상인: { leadership: 2, scouting: 1, farming: -1 },
+  편의점주: { cooking: 1, leadership: 1, combat: -1 },
+  사회복지사: { leadership: 1, medical: 1, combat: -1 },
+  상담사: { mental: 2, leadership: 1, combat: -1 },
+  성직자: { leadership: 2, mental: 1, combat: -1 },
+  환경기사: { farming: 1, scouting: 1, combat: -1 },
+  연구원: { medical: 1, crafting: 1, combat: -1 },
+  기계공학자: { crafting: 2, building: 1, farming: -1 },
+  주부: { cooking: 2, medical: 1, combat: -1 },
+  일용직: { building: 1, farming: 1, leadership: -1 },
+  무직: { cooking: 1, mental: -1, leadership: -1 },
+};
+
+export function jobModLines(job) {
+  const mods = JOB_MODS[job];
+  if (!mods || !Object.keys(mods).length) return ["능력 보정은 없습니다."];
+  const labels = Object.fromEntries(STAT_KEYS.map(({ key, label }) => [key, label]));
+  return Object.entries(mods).map(([key, amount]) => `${labels[key] ?? key} ${amount > 0 ? "+" : ""}${amount}`);
+}
 
 export const DESTINATIONS = [
   { id: "homes", name: "주택가", days: 1, danger: 2, reward: "식량 · 생존자" },
@@ -148,6 +220,7 @@ const initialState = () => {
   expelTargetId: null,
   leaderTargetId: null,
   leaderShift: null,
+  lastNight: null,
   logs: [
     { day: 1, type: "good", text: "버려진 체육관에 작은 거점을 세웠다." },
     { day: 1, type: "", text: "근처에서 좀비의 울음소리가 들린다." },
@@ -161,7 +234,6 @@ const initialState = () => {
 };
 
 let state = initialState();
-state.nightContact = rollNightContact(state.day, state.factions);
 const listeners = new Set();
 
 export const getState = () => state;
@@ -203,7 +275,7 @@ function rollPerson(member, usedNames) {
   member.age = random(16, 68);
   member.trait = pick(RECRUIT_TRAITS);
   member.background = rollJob(member.age);
-  member.stats = rollStatsForAge(member.age, member.trait);
+  member.stats = rollStatsForAge(member.age, member.trait, member.background);
   member.xp = Object.fromEntries(STAT_DEFINITIONS.map(({ key }) => [key, 0]));
   member.appearance = createAppearance(member.gender);
 }
@@ -213,9 +285,13 @@ function rollJob(age) {
   return pick(fits.length ? fits : JOBS)[0];
 }
 
-function rollStatsForAge(age, trait) {
+function rollStatsForAge(age, trait, job) {
   const cap = ageStatCap(age, trait);
-  return createStats(STAT_DEFINITIONS.map(() => random(1, cap)));
+  const stats = createStats(STAT_DEFINITIONS.map(() => random(1, cap)));
+  Object.entries(JOB_MODS[job] ?? {}).forEach(([key, amount]) => {
+    stats[key] = Math.max(1, Math.min(cap, stats[key] + amount));
+  });
+  return stats;
 }
 
 export function setTab(tab) {
@@ -289,6 +365,11 @@ export function setRiskPolicy(policy) {
     notify();
     return;
   }
+  if (next === "safe" && leader?.trait === "낙천") {
+    toast(`${leader.name}${josa(leader.name, "은", "는")} 낙천이라 안전한 길만 고르지 않습니다.`);
+    notify();
+    return;
+  }
   state.riskPolicy = next;
   notify();
 }
@@ -301,7 +382,7 @@ export function setRecruitPolicy(policy) {
 export function setExpeditionLeader(memberId) {
   const id = Number(memberId);
   if (state.squad.includes(id)) state.expeditionLeaderId = id;
-  settleCowardRisk();
+  settleLeaderRisk();
   notify();
 }
 
@@ -311,7 +392,7 @@ export function toggleSquad(memberId) {
   if (index >= 0) {
     state.squad.splice(index, 1);
     if (state.expeditionLeaderId === id) state.expeditionLeaderId = state.squad[0] ?? null;
-    settleCowardRisk();
+    settleLeaderRisk();
   } else if (state.squad.length < 5) {
     const member = state.members.find((item) => item.id === id);
     const blocked = expeditionBlockReason(member);
@@ -324,7 +405,7 @@ export function toggleSquad(memberId) {
     if (!state.expeditionLeaderId) state.expeditionLeaderId = id;
   }
   else toast("원정대는 최대 5명입니다.");
-  settleCowardRisk();
+  settleLeaderRisk();
   notify();
 }
 
@@ -403,7 +484,9 @@ function resolveExpedition() {
   const scouting = members.reduce((sum, member) => sum + effectiveStat(member, "scouting") + scoutingBonus(member, members.length, true), 0);
   const routeBias = leader?.trait === "겁쟁이"
     ? "safe"
-    : (state.riskPolicy === "leader" ? leaderRouteBias(leader) : null);
+    : leader?.trait === "낙천"
+      ? "risky"
+      : (state.riskPolicy === "leader" ? leaderRouteBias(leader) : null);
   const resolvedRisk = routeBias
     ?? (state.riskPolicy === "leader"
       ? (leadership + combat / members.length >= 13 && expedition.safeRoute ? "safe" : "risky")
@@ -421,8 +504,9 @@ function resolveExpedition() {
   });
   const contact = rollExpeditionContact({ danger, risky, day: state.day, factions: state.factions });
   const ammoPlan = planAmmo(contact, members, risky ? "assault" : "defense");
-  const expeditionAmmoUsed = Math.min(state.resources.ammo, ammoPlan.expected);
-  const shortfall = ammoPlan.expected > 0 ? 1 - expeditionAmmoUsed / ammoPlan.expected : 0;
+  const ammoNeed = rollAmmoNeed(ammoPlan);
+  const expeditionAmmoUsed = Math.min(state.resources.ammo, ammoNeed);
+  const shortfall = ammoNeed > 0 ? 1 - expeditionAmmoUsed / ammoNeed : 0;
   state.resources.ammo -= expeditionAmmoUsed;
   const traitCombat = members.reduce((sum, member) => sum + combatBonus(member, { teamSize: members.length, risky, expedition: true }), 0);
   const fought = Math.max(1, combat + traitCombat) * (shortfall > 0 ? .7 + .3 * (1 - shortfall) : (!ammoPlan.guns && contact && contact.kind !== "zombies" ? .85 : 1));
@@ -455,7 +539,7 @@ function resolveExpedition() {
     expedition.outcomes.push({
       type: shortfall > 0 ? "hostile" : "info",
       title: contactLine(contact),
-      text: `${describeAmmo(ammoPlan.expected, expeditionAmmoUsed)}. 부상 시 체력 ${damageMin}~${damageMax}.`,
+      text: `${describeAmmo(ammoNeed, expeditionAmmoUsed)}. 부상 시 체력 ${damageMin}~${damageMax}.`,
     });
     expedition.contactDamage = [damageMin, damageMax];
   } else {
@@ -590,12 +674,13 @@ export function passDay() {
   state.resources.food = Math.max(0, state.resources.food + foodMade - foodUsed);
   state.resources.material += materialMade;
 
-  const defense = sumEffective(counts["경계"], "combat")
-    + sumEffective(counts["경계"], "scouting") * .5
-    + state.facilities.find((item) => item.id === "wall").level * 3;
-  const night = resolveNightContact(counts["경계"], defense, processedDay);
-  const nightText = night.text;
-  const nightType = night.type;
+  const watchers = counts["경계"];
+  const watchScore = watchers.reduce((sum, member) => sum + effectiveStat(member, "combat") + effectiveStat(member, "scouting") * .5, 0);
+  const contact = rollNightContact(processedDay, state.factions, watchScore);
+  const nightEvent = contact ? createNightEvent(contact, watchers) : null;
+  const nightText = contact ? "방벽 밖에서 기척이 있다. 대응을 정해야 한다." : "어젯밤은 조용히 지나갔다.";
+  const nightType = contact ? "bad" : "good";
+  if (!contact) state.lastNight = { type: "good", text: nightText };
 
   reportNotes.push(...applyTaskRelationshipMood(homeMembers, processedDay));
   homeMembers.forEach((member) => {
@@ -653,7 +738,7 @@ export function passDay() {
     ? Math.round(state.members.reduce((sum, member) => sum + member.mood, 0) / state.members.length)
     : 0;
   state.day += 1;
-  state.nightContact = rollNightContact(state.day, state.factions);
+  state.nightContact = null;
   state.expeditionsToday = 0;
   tickFactions(state.factions);
   reportNotes.push(...processMercenaryContracts());
@@ -677,13 +762,16 @@ export function passDay() {
       ...reportNotes,
     ],
   };
-  const event = rollBaseEvent({
-    day: state.day,
-    members: state.members,
-    facilities: state.facilities,
-    cooldowns: state.eventCooldowns,
-  });
-  if (event) state.pendingEvent = event;
+  if (nightEvent) state.pendingEvent = nightEvent;
+  else {
+    const event = rollBaseEvent({
+      day: state.day,
+      members: state.members,
+      facilities: state.facilities,
+      cooldowns: state.eventCooldowns,
+    });
+    if (event) state.pendingEvent = event;
+  }
   notify();
 }
 
@@ -695,6 +783,20 @@ export function closeReport() {
 export function resolvePendingEvent(choiceId) {
   const event = state.pendingEvent;
   if (!event) return;
+  if (event.id === "night_raid") {
+    if (!event.choices.some((choice) => choice.id === choiceId)) return;
+    const result = resolveNightChoice(event, choiceId);
+    if (!result.ok) {
+      toast(result.message);
+      notify();
+      return;
+    }
+    state.lastNight = { type: result.type === "good" ? "good" : "bad", text: result.message };
+    state.logs.unshift({ day: state.day, type: result.type ?? "", text: result.message });
+    state.pendingEvent = null;
+    notify();
+    return;
+  }
   const definition = eventDefinition(event.id);
   if (!definition?.choices.some((choice) => choice.id === choiceId)) return;
 
@@ -775,6 +877,13 @@ export function hireMercenary(factionId) {
   state.members.push(mercenary);
   ensureRelationshipsFor(mercenary, state.members);
   toast(`${mercenary.name}을(를) ${offer.days}일 동안 고용했습니다.`);
+  notify();
+}
+
+export function autoEquip() {
+  const ranked = [...state.members].sort((a, b) => getStat(b, "combat") - getStat(a, "combat") || b.hp - a.hp || a.id - b.id);
+  const equipped = distributeGear(ranked, state.inventory);
+  toast(equipped ? "전투가 높은 사람부터 좋은 장비를 장착했습니다." : "장착할 장비가 없습니다.");
   notify();
 }
 
@@ -1066,43 +1175,171 @@ function resolveExpeditionEventChoice(event, choiceId) {
   return { ok: true, type: result.outcome === "victory" ? "good" : "bad", message: `${faction.name}과(와) 전투했다.` };
 }
 
-function resolveNightContact(watchers, defense, day) {
-  const contact = state.nightContact ?? rollNightContact(day, state.factions);
-  const plan = planAmmo(contact, watchers, "defense");
-  const used = Math.min(state.resources.ammo, plan.expected);
-  const shortfall = plan.expected > 0 ? 1 - used / plan.expected : 0;
-  state.resources.ammo -= used;
-  const heldDefense = defense * (shortfall > 0 ? .75 + .25 * (1 - shortfall) : 1);
-  const ammoText = describeAmmo(plan.expected, used);
-  if (heldDefense >= contact.power) {
-    return { type: "good", text: `${contactLine(contact)} 접근. ${ammoText}. 방어선이 버텼다.` };
-  }
-
-  const gap = contact.power - heldDefense;
-  const foodLoss = Math.min(state.resources.food, contact.kind === "bandits" ? random(2, 4) : contact.kind === "faction" ? random(1, 3) : random(1, 2));
-  state.resources.food -= foodLoss;
-  const materialLost = contact.kind === "faction" && state.resources.material > 0 ? 1 : 0;
-  state.resources.material -= materialLost;
-  const [damageMin, damageMax] = damageRange(contact, { shortfall, guns: plan.guns });
-  const boost = gap > 6 ? 1.2 : 1;
-  const pool = watchers.length ? watchers : state.members.filter((member) => member.task !== "원정");
-  const hits = Math.min(pool.length, gap > 6 ? 2 : 1);
-  const injured = [];
-  const candidates = [...pool];
-  for (let index = 0; index < hits && candidates.length; index += 1) {
-    const victim = weightedPick(candidates, injuryChanceFactor);
-    candidates.splice(candidates.indexOf(victim), 1);
-    const rolled = Math.round(random(damageMin, damageMax) * boost);
-    const injury = createInjury(contact.kind === "zombies" ? 2 : 4, rolled >= Math.ceil((damageMin + damageMax) / 2));
-    const injuryResult = addInjury(victim, injury, rolled, day);
-    injured.push(`${victim.name} ${injury.name} 체력 ${injuryResult.damage}`);
-  }
-  state.members.filter((member) => member.task !== "원정").forEach((member) => applyMood(member, adjustCrisisMood(member, -4), "야간 침입", day));
-  const losses = [foodLoss ? `식량 ${foodLoss}` : "", materialLost ? `자재 ${materialLost}` : ""].filter(Boolean).join(", ");
+function createNightEvent(contact, watchers) {
+  const people = contact.kind !== "zombies";
+  const fighters = state.members.filter((member) => member.task !== "원정");
+  const gunPlan = planAmmo(contact, fighters, "defense");
+  const ammo = state.resources.ammo;
+  const gunsBlocked = !gunPlan.guns || ammo < 1;
+  const ammoSpan = gunPlan.min === gunPlan.max ? `${gunPlan.min}` : `${gunPlan.min}~${gunPlan.max}`;
+  const gunsHint = !gunPlan.guns
+    ? "화기를 든 사람이 없어 고를 수 없습니다"
+    : ammo < 1
+      ? "탄약이 없어 고를 수 없습니다"
+      : ammo < gunPlan.min
+        ? `보유 탄약 ${ammo}. 이 규모는 ${ammoSpan}발이 필요합니다. 부족하면 직접 전투가 됩니다`
+        : `이 규모는 탄약 ${ammoSpan}발을 씁니다`;
+  const choices = [
+    { id: "fight", label: "전투", hint: "총기를 쓰지 않는다. 부상 위험이 크다" },
+    { id: "guns", label: "총기 허용 전투", hint: gunsHint, blocked: gunsBlocked },
+  ];
+  if (people) choices.push({ id: "persuade", label: "최대한 설득한다", hint: "리더십 판정. 실패하면 물자를 빼앗긴다" });
+  else choices.push({ id: "push", label: "좀비를 밖으로 밀어낸다", hint: "경계의 전투·정찰 판정. 성공하면 들이지 않는다" });
   return {
-    type: "bad",
-    text: `${contactLine(contact)} 접근. ${ammoText}. 방어가 뚫렸다.${losses ? ` ${losses}을 잃었다.` : ""} ${injured.join(", ") || "인명 피해는 없었다"}.`,
+    id: "night_raid",
+    source: "night",
+    title: contact.kind === "zombies" ? "밤의 좀비" : contact.kind === "faction" ? "밤의 습격" : "밤의 강도",
+    description: `방벽 밖에 ${contactLine(contact)}. 어떻게 맞설지 정해야 한다.`,
+    contact,
+    watcherIds: watchers.map((member) => member.id),
+    choices,
   };
+}
+
+function nightFighters() {
+  return state.members.filter((member) => member.task !== "원정");
+}
+
+function resolveNightChoice(event, choiceId) {
+  if (choiceId === "fight") return resolveNightFight(event, false);
+  if (choiceId === "guns") return resolveNightFight(event, true);
+  if (choiceId === "push") return resolveNightPush(event);
+  if (choiceId === "persuade") return resolveNightPersuade(event);
+  return { ok: false, message: "고를 수 없는 대응입니다." };
+}
+
+function resolveNightFight(event, allowGuns) {
+  const fighters = nightFighters();
+  const contact = event.contact;
+  if (!fighters.length) {
+    const foodLoss = Math.min(state.resources.food, 3);
+    state.resources.food -= foodLoss;
+    return { ok: true, type: "bad", message: `거점에 남은 사람이 없어 식량 ${foodLoss}을 잃었다.` };
+  }
+  if (allowGuns) {
+    const plan = planAmmo(contact, fighters, "defense");
+    if (!plan.guns) return { ok: false, message: "화기를 든 사람이 없어 총기 전투를 할 수 없습니다." };
+    if (state.resources.ammo < 1) return { ok: false, message: "탄약이 없어 총기 전투를 할 수 없습니다." };
+  }
+  const result = resolveFactionCombat({
+    members: fighters,
+    faction: { name: contact.label, power: contact.power },
+    tactic: "defense",
+    ammo: allowGuns ? state.resources.ammo : 0,
+    contact,
+    day: state.day,
+  });
+  if (allowGuns) state.resources.ammo -= result.ammoUsed;
+  const consequence = applyCombatConsequences(fighters, result, contactLine(contact));
+  const held = nightHeldPhrase(contact.kind, result.outcome);
+  const hurt = nightCasualtyText(consequence.notes);
+  const short = allowGuns && result.expectedAmmo > 0 && result.ammoUsed < result.expectedAmmo;
+  let message;
+  if (!allowGuns) message = `총기 없이 직접 싸워 ${held}. ${hurt}.`;
+  else if (short) message = `총기를 허용하였으나 탄약 ${result.ammoUsed}발로는 부족해 직접 전투가 되었다. ${held}. ${hurt}.`;
+  else if (hurt === "부상자는 없었다" && result.outcome !== "defeat") message = `총기를 허용하여 탄약 ${result.ammoUsed}발을 소모해 부상자 없이 ${held}.`;
+  else if (hurt === "부상자는 없었다") message = `총기를 허용하여 탄약 ${result.ammoUsed}발을 소모했으나 ${held}.`;
+  else message = `총기를 허용하여 탄약 ${result.ammoUsed}발을 소모해 ${held}. 그러나 ${hurt}.`;
+  return {
+    ok: true,
+    type: result.outcome === "victory" ? "good" : "bad",
+    message,
+  };
+}
+
+function nightHeldPhrase(kind, outcome) {
+  const zombies = kind === "zombies";
+  if (outcome === "victory") return zombies ? "좀비를 쓰러뜨리고 막았다" : "물리쳐 물러나게 했다";
+  if (outcome === "retreat") return zombies ? "간신히 버텨 막았다" : "간신히 물러나게 했다";
+  return zombies ? "막지 못하고 좀비에게 뚫렸다" : "막지 못하고 들이닥쳤다";
+}
+
+function nightCasualtyText(notes) {
+  const wounded = [];
+  const deaths = [];
+  notes.forEach((note) => {
+    if (note.includes("인명 피해 없음")) return;
+    if (note.includes("사망")) deaths.push(note.replace(" 사망.", "").trim());
+    else wounded.push(note.split(" ")[0]);
+  });
+  const parts = [];
+  if (wounded.length) parts.push(`${wounded.join(", ")} 부상`);
+  if (deaths.length) parts.push(`${deaths.join(", ")} 사망`);
+  return parts.length ? parts.join(", ") : "부상자는 없었다";
+}
+
+function resolveNightPush(event) {
+  const contact = event.contact;
+  if (contact.kind !== "zombies") return { ok: false, message: "사람 무리는 밀어낼 수 없습니다." };
+  const watchers = event.watcherIds.map((id) => state.members.find((member) => member.id === id)).filter(Boolean);
+  const crew = watchers.length ? watchers : nightFighters();
+  const score = crew.reduce((sum, member) => sum + effectiveStat(member, "combat") + effectiveStat(member, "scouting") * .5, 0);
+  const success = score + random(1, 6) >= Math.max(6, contact.power * .55);
+  if (success) {
+    crew.forEach((member) => { member.fatigue = Math.min(100, member.fatigue + 6); });
+    return { ok: true, type: "good", message: "좀비를 밀쳐내 부상자 없이 밤을 넘겼다." };
+  }
+  const victim = crew.length ? weightedPick(crew, injuryChanceFactor) : null;
+  if (victim) {
+    const injury = createInjury(2, false);
+    const injuryResult = addInjury(victim, injury, random(6, 12), state.day);
+    return { ok: true, type: "bad", message: `좀비를 밀쳐내려다 ${victim.name}가 다쳤다. ${injury.name}, 체력 ${injuryResult.damage}.` };
+  }
+  const foodLoss = Math.min(state.resources.food, 2);
+  state.resources.food -= foodLoss;
+  return { ok: true, type: "bad", message: `밀어내기에 실패해 식량 ${foodLoss}을 잃었다.` };
+}
+
+function resolveNightPersuade(event) {
+  const contact = event.contact;
+  if (contact.kind === "zombies") return { ok: false, message: "좀비와는 말할 수 없습니다." };
+  const home = nightFighters();
+  const speaker = [...home].sort((a, b) => getStat(b, "leadership") - getStat(a, "leadership"))[0];
+  if (!speaker) {
+    const foodLoss = Math.min(state.resources.food, 2);
+    state.resources.food -= foodLoss;
+    return { ok: true, type: "bad", message: `설득할 사람이 없어 식량 ${foodLoss}을 빼앗겼다.` };
+  }
+  const need = contact.kind === "faction" ? 11 : 8;
+  const success = getStat(speaker, "leadership") + random(1, 6) >= need;
+  if (contact.factionId && state.factions[contact.factionId]) {
+    const faction = state.factions[contact.factionId];
+    faction.relation = Math.max(-100, Math.min(100, faction.relation + (success ? 6 : -5)));
+    if (!success) faction.retaliationDays = Math.max(faction.retaliationDays ?? 0, 2);
+  }
+  if (success) return { ok: true, type: "good", message: `${speaker.name}의 설득으로 부상자 없이 물러났다.` };
+  const stolen = stealNightSupplies(contact.kind === "bandits" ? random(2, 4) : random(1, 3));
+  applyMood(speaker, adjustCrisisMood(speaker, -3), "설득 실패", state.day);
+  return { ok: true, type: "bad", message: stolen ? `설득에 실패해 ${stolen} 빼앗겼다.` : "설득에 실패했지만 빼앗길 물자가 없었다." };
+}
+
+function stealNightSupplies(cap) {
+  const stock = [
+    ["food", "식량"],
+    ["material", "자재"],
+    ["medicine", "의약품"],
+    ["silver", "은"],
+  ].filter(([key]) => state.resources[key] > 0);
+  if (!stock.length || cap < 1) return "";
+  const [key, label] = pick(stock);
+  const amount = Math.min(state.resources[key], key === "medicine" ? 1 : cap);
+  state.resources[key] -= amount;
+  return `${label} ${amount}${countParticle(amount)}`;
+}
+
+function countParticle(value) {
+  const batchim = [true, true, false, true, false, false, true, true, true, false];
+  return batchim[value % 10] ? "을" : "를";
 }
 
 function processMemberFights(day) {
@@ -1128,15 +1365,27 @@ function pairTension(first, second) {
   if (first.trait === "다혈질" || second.trait === "다혈질") tension += .05;
   if ((first.mood ?? 70) <= 25 || (second.mood ?? 70) <= 25) tension += .04;
   if (["냉정", "자비", "충직"].includes(first.trait) && ["냉정", "자비", "충직"].includes(second.trait)) tension -= .03;
+  if (first.trait === "유순함" || second.trait === "유순함") tension -= .05;
   return Math.max(0, tension);
 }
 
 function resolveMemberFight(first, second, day) {
+  if (first.trait === "유순함" && second.trait === "유순함") {
+    const drop = random(1, 3);
+    first.relationships[second.id] = Math.max(-100, (first.relationships[second.id] ?? 0) - drop);
+    second.relationships[first.id] = Math.max(-100, (second.relationships[first.id] ?? 0) - drop);
+    applyMood(first, -1, "작은 다툼", day);
+    applyMood(second, -1, "작은 다툼", day);
+    const text = `${first.name}과(와) ${second.name}이(가) 목소리를 높였지만, 서로 물러나 싸움으로 번지지 않았다.`;
+    state.logs.unshift({ day, type: "info", text });
+    return [text];
+  }
+  const docile = first.trait === "유순함" || second.trait === "유순함";
   const firstPower = getStat(first, "combat") + combatBonus(first, { battle: true }) + random(0, 4);
   const secondPower = getStat(second, "combat") + combatBonus(second, { battle: true }) + random(0, 4);
   const loser = firstPower === secondPower ? pick([first, second]) : (firstPower < secondPower ? first : second);
   const winner = loser === first ? second : first;
-  const loserDamage = random(10, 22);
+  const loserDamage = docile ? random(6, 14) : random(10, 22);
   const loserInjury = createInjury(loserDamage >= 16 ? 4 : 2, loserDamage >= 16);
   const loserResult = addInjury(loser, loserInjury, loserDamage, day);
   let winnerNote = "";
@@ -1146,11 +1395,11 @@ function resolveMemberFight(first, second, day) {
     const winnerResult = addInjury(winner, winnerInjury, winnerDamage, day);
     winnerNote = ` ${winner.name}도 ${winnerInjury.name}으로 체력 ${winnerResult.damage}을 잃었다.`;
   }
-  const drop = random(6, 12);
+  const drop = docile ? random(3, 7) : random(6, 12);
   first.relationships[second.id] = Math.max(-100, (first.relationships[second.id] ?? 0) - drop);
   second.relationships[first.id] = Math.max(-100, (second.relationships[first.id] ?? 0) - drop);
-  applyMood(first, -5, "구성원 싸움", day);
-  applyMood(second, -5, "구성원 싸움", day);
+  applyMood(first, first.trait === "유순함" ? -2 : -5, "구성원 싸움", day);
+  applyMood(second, second.trait === "유순함" ? -2 : -5, "구성원 싸움", day);
   state.members
     .filter((member) => member !== first && member !== second && member.task !== "원정")
     .forEach((member) => {
@@ -1295,6 +1544,7 @@ function leaderChangeReactions(previous, next, day) {
     다혈질: [2, `${topic(next)} 자신이 끌어야 한다며 자리를 잡는다`],
     생존본능: [2, `${topic(next)} 직접 결정하는 편이 안전하다고 여긴다`],
     외톨이: [-5, `${topic(next)} 리더가 된 것이 부담스럽다`],
+    유순함: [-3, `${topic(next)} 리더가 된 것이 부담스럽다`],
   };
   const previousMood = {
     야심: [-8, `${topic(previous)} ${subject(next)} 리더를 맡는 것에 크게 불만이다`],
@@ -1308,6 +1558,7 @@ function leaderChangeReactions(previous, next, day) {
     충직: [1, `${topic(previous)} 리더 자리를 넘긴 뒤에도 공동체를 따르겠다며 담담하다`],
     낙천: [2, `${topic(previous)} 어깨가 가벼워졌다며 만족한다`],
     외톨이: [4, `${topic(previous)} 리더에서 벗어나 한숨 돌리며 만족한다`],
+    유순함: [3, `${topic(previous)} 리더에서 벗어나 안도한다`],
   };
   react(next, ...(nextMood[next.trait] ?? [2, `${topic(next)} 리더가 된 것을 받아들인다`]));
   react(previous, ...(previousMood[previous.trait] ?? [-3, `${topic(previous)} ${subject(next)} 리더를 맡는 것에 불만이다`]));
@@ -1347,6 +1598,7 @@ function witnessLeaderReaction(member, previous, next) {
     return [-3, `${name} 갑자기 리더가 바뀐 것이 거슬린다`];
   }
   if (member.trait === "외톨이") return [-2, `${name} 리더 문제로 소란스러워진 것이 싫다`];
+  if (member.trait === "유순함") return [2, `${name} 누가 리더가 되든 따른다`];
   if (member.trait === "생존본능") {
     const score = (person) => getStat(person, "mental") + getStat(person, "combat");
     return score(next) >= score(previous)
@@ -1376,11 +1628,15 @@ function routeLeader() {
   return squadLeader ?? state.members.find((member) => member.leader) ?? null;
 }
 
-function settleCowardRisk() {
+function settleLeaderRisk() {
   const leader = routeLeader();
-  if (leader?.trait !== "겁쟁이" || state.riskPolicy !== "risky") return;
-  state.riskPolicy = "safe";
-  toast(`${leader.name}${josa(leader.name, "은", "는")} 겁쟁이라 위험 감수를 유지할 수 없습니다. 안전 우선으로 바꿨습니다.`);
+  if (leader?.trait === "겁쟁이" && state.riskPolicy === "risky") {
+    state.riskPolicy = "safe";
+    toast(`${leader.name}${josa(leader.name, "은", "는")} 겁쟁이라 위험 감수를 유지할 수 없습니다. 안전 우선으로 바꿨습니다.`);
+  } else if (leader?.trait === "낙천" && state.riskPolicy === "safe") {
+    state.riskPolicy = "risky";
+    toast(`${leader.name}${josa(leader.name, "은", "는")} 낙천이라 안전 우선을 유지할 수 없습니다. 위험 감수로 바꿨습니다.`);
+  }
 }
 
 function josa(name, withBatchim, withoutBatchim) {
@@ -1606,7 +1862,8 @@ function createRandomRecruit() {
   const name = createName(gender, state.members.map((member) => member.name));
   const age = random(16, 68);
   const trait = pick(RECRUIT_TRAITS);
-  return createMember(id, name, age, trait, rollJob(age), rollStatsForAge(age, trait), false, gender);
+  const job = rollJob(age);
+  return createMember(id, name, age, trait, job, rollStatsForAge(age, trait, job), false, gender);
 }
 
 function rollGender() {

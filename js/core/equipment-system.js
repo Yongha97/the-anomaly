@@ -45,3 +45,28 @@ export function equipmentBonus(member) {
 export function itemName(itemId) {
   return ITEMS[itemId]?.name ?? "없음";
 }
+
+export function distributeGear(members, inventory) {
+  const pool = { ...inventory };
+  members.forEach((member) => {
+    ensureEquipment(member);
+    ["weapon", "armor"].forEach((slot) => {
+      const itemId = member.equipment[slot];
+      if (itemId) pool[itemId] = (pool[itemId] ?? 0) + 1;
+      member.equipment[slot] = null;
+    });
+  });
+  Object.keys(inventory).forEach((key) => { inventory[key] = 0; });
+  Object.assign(inventory, pool);
+
+  const weapons = Object.values(ITEMS).filter((item) => item.slot === "weapon").sort((a, b) => b.combat - a.combat || b.ammo - a.ammo);
+  const armors = Object.values(ITEMS).filter((item) => item.slot === "armor").sort((a, b) => b.defense - a.defense);
+  let equipped = 0;
+  members.forEach((member) => {
+    const weapon = weapons.find((item) => (inventory[item.id] ?? 0) > 0);
+    if (weapon && equipItem(member, weapon.id, inventory).ok) equipped += 1;
+    const armor = armors.find((item) => (inventory[item.id] ?? 0) > 0);
+    if (armor && equipItem(member, armor.id, inventory).ok) equipped += 1;
+  });
+  return equipped;
+}

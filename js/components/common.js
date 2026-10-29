@@ -1,5 +1,6 @@
-import { getState, STAT_KEYS, TASKS } from "../core/state.js";
+import { getState, jobModLines, STAT_KEYS, TASKS } from "../core/state.js";
 import { fatigueLabel, moodLabel } from "../core/member-system.js";
+import { TRAIT_EFFECTS } from "../core/trait-system.js";
 
 export const escapeHtml = (value = "") => String(value)
   .replaceAll("&", "&amp;")
@@ -90,7 +91,10 @@ export function memberCard(member, editable = true) {
       <div class="portrait">${faceHtml(member)}</div>
       <div>
         <div class="member-name">${escapeHtml(member.name)}${member.leader ? "<small>리더</small>" : ""}</div>
-        <div class="member-meta">${member.gender === "female" ? "여" : "남"} · ${member.age}세 · ${escapeHtml(member.trait)} · ${escapeHtml(member.background)}${member.membership === "mercenary" ? ` · 용병 ${member.contract.daysRemaining}일` : ""}</div>
+        <div class="identity-set">
+          <div class="member-meta">${member.gender === "female" ? "여" : "남"} · ${member.age}세 · ${editable ? escapeHtml(member.trait) : `<span class="identity trait-identity">${traitNameButton(member)}</span>`} · ${editable ? escapeHtml(member.background) : `<span class="identity job-identity">${jobNameButton(member)}</span>`}${member.membership === "mercenary" ? ` · 용병 ${member.contract.daysRemaining}일` : ""}</div>
+          ${editable ? "" : `${traitPanel(member)}${jobPanel(member)}`}
+        </div>
         <div class="status-bars">
           ${statusBar("체력", member.hp, `${member.hp}`)}
           ${statusBar("피로", member.fatigue, fatigueLabel(member.fatigue), "fatigue")}
@@ -110,6 +114,34 @@ export function memberCard(member, editable = true) {
         </select>
       ` : `<span class="badge">${escapeHtml(member.task)}</span>`}
     </article>
+  `;
+}
+
+export function traitNameButton(member) {
+  return `<button type="button" class="trait-name" aria-describedby="trait-${member.id}">${escapeHtml(member.trait)}</button>`;
+}
+
+export function jobNameButton(member) {
+  return `<button type="button" class="trait-name" aria-describedby="job-${member.id}">${escapeHtml(member.background)}</button>`;
+}
+
+export function traitPanel(member) {
+  const lines = TRAIT_EFFECTS[member.trait] ?? ["드러난 특성이 없습니다."];
+  return `
+    <div class="trait-pop" id="trait-${member.id}" role="tooltip">
+      <b>${escapeHtml(member.trait)}</b>
+      ${lines.map((line) => `<small>${escapeHtml(line)}</small>`).join("")}
+    </div>
+  `;
+}
+
+export function jobPanel(member) {
+  const lines = jobModLines(member.background);
+  return `
+    <div class="trait-pop job-pop" id="job-${member.id}" role="tooltip">
+      <b>${escapeHtml(member.background)}</b>
+      ${lines.map((line) => `<small>${escapeHtml(line)}</small>`).join("")}
+    </div>
   `;
 }
 

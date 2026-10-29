@@ -44,10 +44,11 @@ export function rollExpeditionEvent({ members, danger, factionIds, factions = {}
     pending.factionId = pick(factionIds);
     const faction = factions[pending.factionId];
     pending.contact = rollContact({ situation: "faction", day, danger, faction });
-    const expected = planAmmo(pending.contact, members, "defense").expected;
-    pending.description = `${pending.contact.label} ${pending.contact.count}명이 길을 막았습니다. 싸우면 예상 탄약 ${expected}입니다.`;
+    const ammoPlan = planAmmo(pending.contact, members, "defense");
+    const ammoSpan = ammoPlan.min === ammoPlan.max ? `${ammoPlan.min}` : `${ammoPlan.min}~${ammoPlan.max}`;
+    pending.description = `${pending.contact.label} ${pending.contact.count}명이 길을 막았습니다. 싸우면 탄약 ${ammoSpan}발을 씁니다.`;
     const fight = pending.choices.find((choice) => choice.id === "fight");
-    if (fight) fight.hint = expected ? `예상 탄약 ${expected}, 관계 급락` : "화기 없음, 근접 피해 증가";
+    if (fight) fight.hint = ammoPlan.guns ? `탄약 ${ammoSpan}, 관계 급락` : "화기 없음, 근접 피해 증가";
   }
   return { manual: true, event: pending };
 }
